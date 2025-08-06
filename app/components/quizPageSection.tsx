@@ -16,7 +16,7 @@ type quizeType = {
 };
 
 function getBadge(score: number, totalQuestions: number): string {
-  const maxScore = totalQuestions * 30;
+  const maxScore = totalQuestions * 10;
   const percentage = (score / maxScore) * 100;
 
   if (percentage >= 90) return "🥇 Gold Badge";
@@ -29,6 +29,10 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
   const len = Quizes.length;
   const router = useRouter();
   const [score, setScore] = useState<number>(0);
+  const [correctCount, setCorrectCount] = useState<number>(0);
+  const totalDurationSec = 600;
+  const formatTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   const [questionNumber, setQuestionNumber] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(-1);
   const [answerChecked, setAnswerChecked] = useState(false);
@@ -38,6 +42,8 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
   const [timeLeft, setTimeLeft] = useState(600);
   const [showTimeUpModal, setShowTimeUpModal] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(true);
+
+  const [finalTimeTaken, setFinalTimeTaken] = useState<number | null>(null); // 🔒 NEW
 
   const quizer: quizeType = Quizes[questionNumber];
 
@@ -72,6 +78,7 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
 
   const handleAutoSubmit = async () => {
     setAnswerChecked(true);
+    setFinalTimeTaken(totalDurationSec - Math.max(timeLeft, 0)); // 🔒 capture final time
     if (player?.Player_ID) {
       try {
         const nextLevel = Number(levelNumber) + 1;
@@ -89,7 +96,7 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
       }
     }
     setShowTimeUpModal(true);
-    setQuestionNumber(len);
+    setQuestionNumber(len); // moves to results
   };
 
   const handleNextLevel = async () => {
@@ -124,19 +131,26 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
   const handleScore = () => {
     setAnswerChecked(true);
     if (selectedAnswer === quizer.test_answer) {
-      setScore(score + (retried ? 10 : 30));
+      setScore((prev) => prev + (retried ? 10 : 30));
+      setCorrectCount((prev) => prev + 1);
     }
   };
 
   const handleNextQuestion = () => {
-    if (questionNumber < len) {
+    // 🔒 When moving past the last question, capture final time and go to results
+    if (questionNumber < len - 1) {
       setQuestionNumber(questionNumber + 1);
       setDefault();
+    } else {
+      setFinalTimeTaken(totalDurationSec - Math.max(timeLeft, 0)); // capture at end
+      setQuestionNumber(len); // show results
     }
   };
 
   const handleRetry = () => {
     setScore(0);
+    setCorrectCount(0);
+    setFinalTimeTaken(null); // 🔒 reset captured time
     setQuestionNumber(0);
     router.push("/quiz/" + levelNumber);
   };
@@ -288,6 +302,20 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
                         {player?.Playerpoint ? player?.Playerpoint + score : score}
                       </h1>
                     </div>
+
+                    {/* Correct Answers */}
+                    <div className="bg-indigo-50 rounded border-2 border-indigo-200 flex flex-col gap-4 items-center px-6 py-4">
+                      <p className="mt-4 text-xl">✅ CORRECT ANSWERS</p>
+                      <h1 className="text-4xl font-bold">{correctCount} / {len}</h1>
+                    </div>
+
+                    {/* Time Taken (frozen) */}
+                    <div className="bg-purple-50 rounded border-2 border-purple-200 flex flex-col gap-4 items-center px-6 py-4">
+                      <p className="mt-4 text-xl">⏱️ TIME TAKEN</p>
+                      <h1 className="text-4xl font-bold">
+                        {finalTimeTaken !== null ? formatTime(finalTimeTaken) : "--:--"}
+                      </h1>
+                    </div>
                   </div>
                   <Image
                     src={"/mascot/proudMascot.svg"}
@@ -302,9 +330,7 @@ export default function QuizPageSection({ Quizes, levelNumber, levelTitle, playe
                   Save Score
                 </button>
 
-        
-
-                {/* ✅ Integrated Social Share */}
+                {/* Integrated Social Share */}
                 <div className="mt-10">
                   <SocialShare score={score} />
                 </div>
